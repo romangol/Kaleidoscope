@@ -74,7 +74,7 @@ def get_reg_map( inst ):
 
 
 if __name__=="__main__":
-    f = open("trace.txt")
+    f = open("data\\trace.txt")
     s_list = f.readlines()
     
     addr_list = []
@@ -101,7 +101,7 @@ if __name__=="__main__":
     #print addr_list
     #print addr_opcode_dic
 
-    g = open("mil.txt", 'w')
+    g = open("data\\mil.txt", 'w')
     for i in opcode_list:
         g.write(i)
         g.write('\n')

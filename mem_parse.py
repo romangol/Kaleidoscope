@@ -20,14 +20,16 @@ def stat_mem( lst ):
     return stat_dict
 
 if __name__=="__main__":
-    f = open("w.txt")
+    f = open("data\\w.txt")
     w_list = f.readlines()
-    #stat_mem( w_list )
+    print "Memory Write"
+    stat_mem( w_list )
     f.close()
 
 
-    g = open("r.txt")
+    g = open("data\\r.txt")
     r_list = g.readlines()
+    print "Memory Read"
     stat_mem( r_list )
     g.close()
 

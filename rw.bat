@@ -1,2 +1,2 @@
-findstr "|W" mil.txt > w.txt
-findstr "|R" mil.txt > r.txt
+findstr "|W" data\mil.txt > data\w.txt
+findstr "|R" data\mil.txt > data\r.txt
