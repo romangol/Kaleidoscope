@@ -1,2 +1,2 @@
-dot test.dot -Tpng -o result.png
-result.png
+dot fig\test.dot -Tpng -o fig\result.png
+fig\result.png

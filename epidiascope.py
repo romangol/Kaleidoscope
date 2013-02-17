@@ -128,6 +128,9 @@ if __name__=="__main__":
     h.write( "graph rc4wind {\n" )
     h.write( "node [shape=point];\n" )
 
+    X = []
+    Y = []
+    
     for k,v in  addr_map.iteritems():
         res = v.split('|')
         res = set(res)

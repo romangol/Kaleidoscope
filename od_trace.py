@@ -81,16 +81,10 @@ def rewrite_opcode( opcode, m_dic, r_dic ):
         if opnum[1] in REG_SET and opnum[0] in REG_SET: # REG <-> REG
             if op == 'MOV': return '%s=:%s|'%(opnum[0], opnum[1])
 
-    try:
-        opnum = ops[1]
-    except:
-        print opcode
-        return ""
     # 特殊指令指定规则
-    if op == 'PUSH': return '%s=%s:%s|W'%(m_dic[0], m_dic[1], opnum[0])
-    if op == 'POP': return '%s=%s:%s|R'%(opnum[0], m_dic[1], m_dic[0])
+    if op == 'PUSH': return '%s=%s:%s|W'%(m_dic[0], m_dic[1], ops[1] )
+    if op == 'POP': return '%s=%s:%s|R'%(ops[1], m_dic[1], m_dic[0])
          
-
     #其余替换内存地址
     if m_dic:
         opcode = addr_replace( opcode, m_dic[0] )
