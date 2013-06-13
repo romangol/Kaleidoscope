@@ -1,0 +1,1 @@
+findstr "|[RW]" ..\data\mil.log > ..\data\rw.log
