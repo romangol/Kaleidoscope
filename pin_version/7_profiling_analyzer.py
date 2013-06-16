@@ -13,7 +13,7 @@ def parseProfiler():
 
     newData = []
     for s in data:
-        if len(s) > 18:
+        if len(s) > 13:
             newData.append(s)
 
     g = open('../data/profiled.log','w')

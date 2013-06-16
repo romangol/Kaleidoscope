@@ -30,5 +30,6 @@ struct RegS
 
 
 int kaleidoscope( int argc, char * argv[] );
+int profiler( int argc, char * argv[] );
 
 #endif
