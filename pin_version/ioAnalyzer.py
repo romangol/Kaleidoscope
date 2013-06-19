@@ -11,7 +11,29 @@ REG8_RE = '[abcd][lh]'
 REG_TO_MEM = '\],'
 MEM_TO_REG = ',.*\['
 
-def getAddrList():
+
+REG_SET = set(["eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp",
+               "ah", "al", "bh", "bl", "ch", "cl", "dh", "dl",
+               "ax", "bx", "cx", "dx", "si", "di", "bp" ])
+
+
+REG_TYPE = 0
+MEM_TYPE = 1
+IMM_TYPE = 2
+
+def get_threads():
+    f = open("../data/threads.out",'r')
+    ls = f.readline()
+    f.close()
+
+    s = ls.split()
+    t = []
+
+    for i in s:
+        t.append( int(i) )
+    return t
+
+def get_addrlist():
     f = open("../data/instPool.log")
     d = f.readlines()
     f.close()
@@ -20,7 +42,7 @@ def getAddrList():
         addr.append( s[0:8] )
     return addr
 
-def getCodeList():
+def get_codelist():
     f = open("../data/instPool.log")
     d = f.readlines()
     f.close()
@@ -29,7 +51,7 @@ def getCodeList():
         code.append( s[9:] )
     return code
 
-def getInput( m_list ):
+def get_input( m_list ):
     mem_dict = {}
     input_dict = {}
 
@@ -46,7 +68,7 @@ def getInput( m_list ):
     return input_dict
 
 
-def getOutput( m_list ):
+def get_output( m_list ):
     mem_dict = {}
     for s in m_list:
         p = re.compile( ADDR_RE + "=[0-9a-f]*" )
@@ -57,3 +79,11 @@ def getOutput( m_list ):
                 addr = int( i[1:9], 16 )
                 mem_dict[addr] = int(j, 16)
     return mem_dict
+
+
+def which_type(oprand):
+    if oprand in REG_SET:
+        return REG_TYPE
+    if "[" in oprand:
+        return MEM_TYPE
+    return IMM_TYPE

@@ -2,19 +2,17 @@
 # 中文支持
 
 import re
+from ioAnalyzer import *
 
 ADDR_RE = '\[[A-Z0-9]{8}\]'
 REG_SET = set(["eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp",
                "ah", "al", "bh", "bl", "ch", "cl", "dh", "dl",
-               "ax", "bx", "cx", "dx", "si", "di" ])
+               "ax", "bx", "cx", "dx", "si", "di", "bp" ])
 
-REG_TYPE = 0
-MEM_TYPE = 1
-IMM_TYPE = 2
 
 RegDic = { "eax":"", "ebx":"", "ecx":"", "edx":"", "edi":"", "esi":"", "ebp":"", "esp":"",
            "ah":"", "al":"", "bh":"", "bl":"", "ch":"", "cl":"", "dh":"", "dl":"",
-           "ax":"", "bx":"", "cx":"", "dx":"", "si":"", "di":"" }
+           "ax":"", "bx":"", "cx":"", "dx":"", "si":"", "di":"", "bp":"" }
 
 def assign_reg( r, regDic ):
     d = r.split(", ")
@@ -47,13 +45,16 @@ def addr_replace ( opcode, addr ):
     postfix = opcode[ opcode.find(']') + 1: ] 
     return prefix + addr + postfix
 
+# remove unused instructions
+def inst_filter ( s ):
+    if "|j" in s or "xmm" in s:
+        return True
 
-def which_type(oprand):
-    if oprand in REG_SET:
-        return REG_TYPE
-    if "[" in oprand:
-        return MEM_TYPE
-    return IMM_TYPE
+    filter_set = set([ "movapd", "movdqa", "leave", "cdq", "ret", "retn", "call", "ret", "std", "cld", "int" ])
+    opcode = s.split('|')[1].split()[0]
+    if not (opcode in filter_set):
+        return False
+    return True
 
 def rewrite_opcode_complex( code, mem, regDic ):
     op = code.split()[0]
@@ -103,17 +104,18 @@ def rewrite_opcode( code, mem, regDic ):
 
     # 赋值规则
     if "mov" in op:
-        if len(op) > 3: # 带条件的mov可能没有mem操作
-            if mem == "":
-                return " "
+        if len(op) > 3 and mem == "":
+            return " " # 带条件的mov可能没有mem操作
+        elif op == "movsd":
+            return '[%s]=%s:[%s]|W'%(regDic["esi"], content, regDic["edi"])
+
         opnum = oprands.split(", ")
         if len(opnum) != 2: raise NameError, code #不是两个操作数的情况
         a, b = opnum
         if which_type(a) == MEM_TYPE  and which_type(b) == REG_TYPE: # [] <-> REG
             return '%s=%s:%s|W'%(addr, content, b)
         elif which_type(a) == MEM_TYPE  and which_type(b) == MEM_TYPE: # REG <-> []
-            if mem == "":
-                return code
+            if mem == "": return code
         elif which_type(a) == REG_TYPE  and which_type(b) == MEM_TYPE: # REG <-> []
             if mem == "":
                 raise NameError, code
@@ -133,56 +135,43 @@ def rewrite_opcode( code, mem, regDic ):
         newCode = addr_replace( code, addr )
     return newCode    
 
-def translate( s_list ):
-    g = open("../data/mil.log", 'w')
-    
+def translate( tid ):
     addr_code_dic = {}
-    new_list = []
-    for s in s_list:
-        addr, code, mem, reg = s.split('|') # split one trace record
-        addr = int( addr[0:8], 16 )
-        reg = reg.strip('\n')
-        addr_code_dic[addr] = code
-     
-        # translate code to mil
-        assign_reg( reg, RegDic )
-        if ';' in mem:
-            new_code = rewrite_opcode_complex( code, mem, RegDic )
-        else:
-            new_code = rewrite_opcode( code, mem, RegDic )
 
-        # re arrange a record
-        new_list.append( s.split('|')[0] + '|' + new_code )
-        g.write( new_list[-1] + '\n' )
+    f = open("../data/itrace" + str(tid) + ".log", "r")
+    g = open("../data/mil" + str(tid) + ".log", 'w')
+
+    s = f.readline()
+    while s != "":
+        if inst_filter(s) == False:
+            addr, code, mem, reg = s.split('|') # split one trace record
+            addr = int( addr[0:8], 16 )
+            reg = reg.strip('\n')
+            addr_code_dic[addr] = code
+         
+            # translate code to mil
+            assign_reg( reg, RegDic )
+            if ';' in mem: # more than one mem operation
+                new_code = rewrite_opcode_complex( code, mem, RegDic )
+            else:
+                new_code = rewrite_opcode( code, mem, RegDic )
+
+            # re arrange a record
+            if new_code != " ":
+                g.write( s.split('|')[0] + '|' + new_code + '\n' )
+        s = f.readline()
 
     #print addr_opcode_dic
     g.close()
-    return new_list
-
-
-# remove unused instructions
-def inst_filter ( lst ):
-    new_list = []
-    filter_set = set([ "movapd", "movdqa", "leave", "cdq", "ret", "retn", "call", "ret", "std", "cld", "int" ])
-
-    for s in lst:
-        if "|j" in s:
-            continue
-        if "xmm" in s:
-            continue
-        opcode = s.split('|')[1].split()[0]
-        if not (opcode in filter_set):
-            new_list.append( s )
-    return new_list
-
-if __name__=="__main__":
-    f = open("../data/itrace.log")
-    s_list = f.readlines()
     f.close()
 
-    # if translate() does not want to parse simple Trace, comment the inst_filter func.
-    s_list = inst_filter ( s_list )
-    n_list = translate( s_list )
-    print "Mil Translated"
+    print "Thread %d: MIL translated\n"%(tid)
 
+
+
+
+if __name__=="__main__":
+    ts = get_threads()
+    for t in ts:
+        translate( t )
     

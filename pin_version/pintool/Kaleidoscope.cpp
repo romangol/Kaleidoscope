@@ -15,12 +15,15 @@ FILE * CodePool; // record instruction's disasm as string pool
 
 static ADDRINT StartAddr = 0xFFFFFFFF;
 static ADDRINT EndAddr = 0xFFFFFFFF;
+static ADDRINT AddrUpBound = 0x01000000;
 
 static bool RecordFlag = false;
 
 static map<unsigned short, unsigned int> ThreadUidDic; // index every instructions
 static map<unsigned short, MemOP> ThreadReadMemDic; // index every instructions
 static map<unsigned short, MemOP> ThreadWriteMemDic; // index every instructions
+
+static unsigned char ThreadIDs[256] = {0};
 
 // Record a memory read record
 VOID rec_mem_read( VOID * addr, UINT32 len )
@@ -108,6 +111,7 @@ VOID printip( const CONTEXT * const ctxt )
 	IpBuffer.esp = PIN_GetContextReg( ctxt, REG_ESP );
 	IpBuffer.ip = PIN_GetContextReg( ctxt, REG_INST_PTR );
 	IpBuffer.id = PIN_ThreadId();
+	ThreadIDs[IpBuffer.id] = 1;
 
 	if ( ThreadUidDic.find(IpBuffer.id) != ThreadUidDic.end() )
 		++ThreadUidDic[IpBuffer.id];
@@ -175,11 +179,13 @@ VOID Instruction(INS ins, VOID *v)
 
 	if ( RecordFlag )
 	{
-		fprintf( CodePool, "%08x|%s\n", pc, INS_Disassemble(ins).c_str() );
-
-		// Insert a call to printip before every instruction, and pass it the IP
-		INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)printip, IARG_CONTEXT, IARG_END );
-		insert_mem_trace(ins);
+		if ( pc < AddrUpBound )
+		{
+			fprintf( CodePool, "%08x|%s\n", pc, INS_Disassemble(ins).c_str() );
+			// Insert a call to printip before every instruction, and pass it the IP
+			INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)printip, IARG_CONTEXT, IARG_END );
+			insert_mem_trace(ins);
+		}
 	}
 }
 
@@ -187,9 +193,16 @@ VOID Instruction(INS ins, VOID *v)
 // This function is called when the application exits
 VOID Fini(INT32 code, VOID *v)
 {
+	FILE * fp = fopen("data/threads.out", "w");
+	for ( size_t i = 0; i < sizeof(ThreadIDs); ++i )
+		if (ThreadIDs[i] != 0)
+			fprintf( fp, "%d ", i );
+	fclose(fp);
+
 	fclose( CodePool );
     fclose( memTrace );
 	fclose( trace );
+	
 	puts("--FINI--\n");
 }
 
@@ -206,9 +219,9 @@ INT32 Usage()
 
 bool init_config()
 {
-	trace = fopen("data/itrace.out", "w+b");
-	CodePool = fopen("data/InstPool.out", "w");
-	memTrace = fopen("data/memTrace.out", "w+b");
+	trace = fopen("data/itrace.out", "wb");
+	CodePool = fopen("data/instPool.out", "w");
+	memTrace = fopen("data/memTrace.out", "wb");
 
 	printf( "Start Address:" );
 	scanf( "%08x", &StartAddr );
@@ -226,7 +239,10 @@ int kaleidoscope(int argc, char * argv[])
 		return Usage();
 
 	if ( !init_config() )
+	{
+		puts("Init record file fails\n");
 		return -1;
+	}
 
 	// Register Instruction to be called to instrument instructions
     INS_AddInstrumentFunction(Instruction, 0);

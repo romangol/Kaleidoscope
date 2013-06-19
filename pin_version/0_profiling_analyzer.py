@@ -13,8 +13,10 @@ def parseProfiler():
 
     newData = []
     for s in data:
-        if len(s) > 13:
-            newData.append(s)
+        if not "C|" in s:
+            x = s.strip('\n')
+            if len(x) > 11 + 5:
+                newData.append(s)
 
     g = open('../data/profiled.log','w')
     for s in newData:
