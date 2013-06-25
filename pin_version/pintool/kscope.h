@@ -31,5 +31,7 @@ struct RegS
 
 int kaleidoscope( int argc, char * argv[] );
 int profiler( int argc, char * argv[] );
+int call_trace( int argc, char * argv[] );
+int entropy( int argc, char * argv[] );
 
 #endif

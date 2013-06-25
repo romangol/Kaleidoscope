@@ -20,6 +20,7 @@ REG_SET = set(["eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp",
 REG_TYPE = 0
 MEM_TYPE = 1
 IMM_TYPE = 2
+REG_OP_TYPE = 3
 
 def get_threads():
     f = open("../data/threads.out",'r')
@@ -86,4 +87,7 @@ def which_type(oprand):
         return REG_TYPE
     if "[" in oprand:
         return MEM_TYPE
+    for i in REG_SET:
+        if i in oprand:
+            return REG_OP_TYPE
     return IMM_TYPE

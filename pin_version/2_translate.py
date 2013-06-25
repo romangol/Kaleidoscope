@@ -101,6 +101,11 @@ def rewrite_opcode( code, mem, regDic ):
         if len(opnum) != 2: raise NameError, code #不是两个操作数的情况
         a, b = opnum
         return '%s=%s'%(a, b[1:-1])
+    if op == 'imul':
+        opnum = oprands.split(", ")
+        if len(opnum) != 3: raise NameError, code #不是三个操作数的情况
+        return '%s=%s*%s'%(opnum[0], opnum[1], opnum[2])
+        
 
     # 赋值规则
     if "mov" in op:

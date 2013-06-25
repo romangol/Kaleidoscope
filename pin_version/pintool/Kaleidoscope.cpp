@@ -2,16 +2,16 @@
 #include <map>
 #include "pin.H"
 #include "kscope.h"
+#include <set>
 
 /*
  * The lock for I/O.
  */
-PIN_LOCK fileLock;
+static PIN_LOCK fileLock;
 
-
-FILE * trace;
-FILE * memTrace;
-FILE * CodePool; // record instruction's disasm as string pool
+static FILE * trace;
+static FILE * memTrace;
+static FILE * CodePool; // record instruction's disasm as string pool
 
 static ADDRINT StartAddr = 0xFFFFFFFF;
 static ADDRINT EndAddr = 0xFFFFFFFF;
@@ -25,8 +25,14 @@ static map<unsigned short, MemOP> ThreadWriteMemDic; // index every instructions
 
 static unsigned char ThreadIDs[256] = {0};
 
+
+#ifdef ADDR_FILTER
+using std::set;
+set<ADDRINT> AddrFilter;
+#endif
+
 // Record a memory read record
-VOID rec_mem_read( VOID * addr, UINT32 len )
+static VOID rec_mem_read( VOID * addr, UINT32 len )
 {
 	GetLock(&fileLock, 1);
 	THREADID tid = ( PIN_ThreadId() & 0xFFFF );
@@ -60,7 +66,7 @@ VOID rec_mem_read( VOID * addr, UINT32 len )
 }
 
 // Record a memory write record
-VOID rec_mem_write( VOID * addr, UINT32 len )
+static VOID rec_mem_write( VOID * addr, UINT32 len )
 {
 	GetLock(&fileLock, 1);
 	THREADID tid = ( PIN_ThreadId() & 0xFFFF );
@@ -74,7 +80,7 @@ VOID rec_mem_write( VOID * addr, UINT32 len )
 	ReleaseLock(&fileLock);
 }
 
-VOID rec_mem_write_content()
+static VOID rec_mem_write_content()
 {
 	THREADID tid = ( PIN_ThreadId() & 0xFFFF );
 	if ( ThreadWriteMemDic[tid].len > 4 ) // ignore this one!
@@ -97,7 +103,7 @@ VOID rec_mem_write_content()
 }
 
 
-VOID printip( const CONTEXT * const ctxt )
+static VOID printip( const CONTEXT * const ctxt )
 {
 	GetLock(&fileLock, 1);
 	static RegS IpBuffer;
@@ -138,7 +144,7 @@ VOID printip( const CONTEXT * const ctxt )
 }
 
 
-VOID insert_mem_trace(INS ins)
+static VOID insert_mem_trace(INS ins)
 {
     if (INS_IsMemoryWrite(ins))
     {
@@ -147,11 +153,11 @@ VOID insert_mem_trace(INS ins)
 
 		if (INS_HasFallThrough(ins))
         {
-            INS_InsertPredicatedCall(ins, IPOINT_AFTER, AFUNPTR(rec_mem_write_content), IARG_MEMORYWRITE_SIZE, IARG_END);
+            INS_InsertPredicatedCall(ins, IPOINT_AFTER, AFUNPTR(rec_mem_write_content), IARG_END);
         }
         if (INS_IsBranchOrCall(ins))
         {
-            INS_InsertPredicatedCall(ins, IPOINT_TAKEN_BRANCH, AFUNPTR(rec_mem_write_content), IARG_MEMORYWRITE_SIZE, IARG_END);
+            INS_InsertPredicatedCall(ins, IPOINT_TAKEN_BRANCH, AFUNPTR(rec_mem_write_content), IARG_END);
         }
     }
 	
@@ -169,29 +175,32 @@ VOID insert_mem_trace(INS ins)
 
 
 // Pin calls this function every time a new instruction is encountered
-VOID Instruction(INS ins, VOID *v)
+static VOID Instruction(INS ins, VOID *v)
 {
 	ADDRINT pc = INS_Address (ins);
-    if ( pc == StartAddr )
+
+	if ( pc == StartAddr )
     	RecordFlag = true;
     if ( pc == EndAddr )
     	RecordFlag = false;
 
-	if ( RecordFlag )
+#ifdef ADDR_FILTER
+	if ( AddrFilter.find(pc) != AddrFilter.end() )
+#else
+	if ( RecordFlag && pc < AddrUpBound )
+#endif
 	{
-		if ( pc < AddrUpBound )
-		{
-			fprintf( CodePool, "%08x|%s\n", pc, INS_Disassemble(ins).c_str() );
-			// Insert a call to printip before every instruction, and pass it the IP
-			INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)printip, IARG_CONTEXT, IARG_END );
-			insert_mem_trace(ins);
-		}
+	
+		fprintf( CodePool, "%08x|%s\n", pc, INS_Disassemble(ins).c_str() );
+		// Insert a call to printip before every instruction, and pass it the IP
+		INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)printip, IARG_CONTEXT, IARG_END );
+		insert_mem_trace(ins);
 	}
 }
 
 
 // This function is called when the application exits
-VOID Fini(INT32 code, VOID *v)
+static VOID Fini(INT32 code, VOID *v)
 {
 	FILE * fp = fopen("data/threads.out", "w");
 	for ( size_t i = 0; i < sizeof(ThreadIDs); ++i )
@@ -210,24 +219,37 @@ VOID Fini(INT32 code, VOID *v)
 /* Print Help Message                                                    */
 /* ===================================================================== */
 
-INT32 Usage()
+static INT32 Usage()
 {
     PIN_ERROR("This Pintool prints the IPs of every instruction executed\n" 
               + KNOB_BASE::StringKnobSummary() + "\n");
     return -1;
 }
 
-bool init_config()
+static bool init_config()
 {
 	trace = fopen("data/itrace.out", "wb");
 	CodePool = fopen("data/instPool.out", "w");
 	memTrace = fopen("data/memTrace.out", "wb");
 
+#ifdef ADDR_FILTER
+	// init Addr Filter
+	std::ifstream ifs( "config/AddrFilter.cfg" );
+	std::string s;
+    while( ifs )
+    {
+		std::getline( ifs, s );
+		ADDRINT i;
+		sscanf( s.c_str(), "%08x\n", &i );
+		AddrFilter.insert(i);
+    }
+#else
 	printf( "Start Address:" );
 	scanf( "%08x", &StartAddr );
 	printf( "End Address:" );
 	scanf( "%08x", &EndAddr );
 	printf( "Start:%08x\tEnd:%08x\n", StartAddr, EndAddr );
+#endif
 
 	return ( trace && CodePool && memTrace );
 }
