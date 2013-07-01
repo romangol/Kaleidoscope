@@ -139,8 +139,13 @@ static VOID printip( const CONTEXT * const ctxt )
 		puts("write ip error\n");
 		exit(0); 
 	}
-
 	ReleaseLock(&fileLock);
+
+    if ( IpBuffer.ip == EndAddr )
+	{
+		puts("Detatched\n");
+        PIN_Detach();
+	}
 }
 
 
@@ -181,8 +186,6 @@ static VOID Instruction(INS ins, VOID *v)
 
 	if ( pc == StartAddr )
     	RecordFlag = true;
-    if ( pc == EndAddr )
-    	RecordFlag = false;
 
 #ifdef ADDR_FILTER
 	if ( AddrFilter.find(pc) != AddrFilter.end() )
@@ -196,11 +199,14 @@ static VOID Instruction(INS ins, VOID *v)
 		INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)printip, IARG_CONTEXT, IARG_END );
 		insert_mem_trace(ins);
 	}
+
+	if ( pc == EndAddr )
+    	RecordFlag = false;
 }
 
 
 // This function is called when the application exits
-static VOID Fini(INT32 code, VOID *v)
+static VOID Fini(VOID *v)
 {
 	FILE * fp = fopen("data/threads.out", "w");
 	for ( size_t i = 0; i < sizeof(ThreadIDs); ++i )
@@ -270,8 +276,12 @@ int kaleidoscope(int argc, char * argv[])
     INS_AddInstrumentFunction(Instruction, 0);
 
     // Register Fini to be called when the application exits
-    PIN_AddFiniFunction(Fini, 0);
+    // PIN_AddFiniFunction(Fini, 0);
     
+    // Callback functions to invoke before
+    // Pin releases control of the application
+    PIN_AddDetachFunction(Fini, 0);
+
     // Start the program, never returns
     PIN_StartProgram();
     

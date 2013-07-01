@@ -48,7 +48,10 @@ def change_dic( s, content, addFlag = False ):
     if sType == MEM_TYPE:
         addr = int ( s[1:9], 16 )
         if addFlag == True:
-            DataDic[addr] += content
+            if not addr in DataDic:
+                DataDic[addr] = content
+            else:
+                DataDic[addr] += content
         else:
             DataDic[addr] = content
     elif sType == REG_TYPE: #REG=[xxxxxxxx]
@@ -61,15 +64,14 @@ def change_dic( s, content, addFlag = False ):
     
 def get_content(s):
     sType = which_type( s )
+    result = ""
     if sType == REG_TYPE: #[xxxxxxxx]=REG
         result = DataDic[reg_extend(s)] # extend the addr slot
-    elif sType == IMM_TYPE: #[xxxxxxxx]=0xDEADBEEF
-        result = "0x" + s # assign symbol to addr
     elif sType == MEM_TYPE: #[xxxxxxxx]=[xxxxxxxx]
         addr = int ( s[1:9], 16 )
-        if not addr in DataDic:
-            DataDic[addr] = s
-        result = DataDic[addr]
+        result = s
+    elif sType == IMM_TYPE: #[xxxxxxxx]=0xDEADBEEF
+        result = s
     else:
         raise NameError, s
 
@@ -78,7 +80,7 @@ def get_content(s):
     return result
 
 def symbol_dependency( data ):
-    for i in RegSet: DataDic[i] = i
+    for i in RegSet: DataDic[i] = i + '|'
     
     for item in data:
         s = item.strip('\n').split('|')[1]
@@ -86,6 +88,9 @@ def symbol_dependency( data ):
         if ':' in s: # assign operation
             src = s.split(':')[1]
             dest = s.split('=')[0]
+
+            #if which_type( src ) == IMM_TYPE: continue
+
             change_dic( dest, get_content(src) )
 
         elif ',' in s: # arithmetic and compare operation
@@ -94,9 +99,11 @@ def symbol_dependency( data ):
             except:
                 raise NameError, s
             dest = dest.strip(',')
+            #if which_type( src ) == IMM_TYPE: continue
+            #if op == "cmp": continue
+
             d = op + '-' + get_content(src)
             change_dic( dest, d, True )
-            #change_dic (src ?
         #else: raise NameError, s
 
     for k,v in  DataDic.iteritems():
@@ -104,12 +111,6 @@ def symbol_dependency( data ):
             print "%08x:%s"%(k,v)
 
 if __name__=="__main__":
-    f = open("../data/rw0.log")
-    insts = f.readlines()
-    inDic = get_input( insts )
-    outDic = get_output( insts )
-    f.close()
-    
     f = open("../data/mil0.log")
     data = f.readlines()
     f.close()

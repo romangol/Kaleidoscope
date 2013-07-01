@@ -90,7 +90,7 @@ def rewrite_opcode( code, mem, regDic ):
     # 特殊指令指定规则
     if op == 'push':
         if which_type(oprands) == IMM_TYPE:
-            return '%s=%s:C|W'%(addr, content )
+            return '%s=%s:IMM-%s|W'%(addr, content, content )
         else:
             return '%s=%s:%s|W'%(addr, content, oprands )
     if op == 'pop':
@@ -128,9 +128,9 @@ def rewrite_opcode( code, mem, regDic ):
         elif which_type(a) == REG_TYPE  and which_type(b) == REG_TYPE: # REG <-> REG
             return '%s=%s:%s'%(a, regDic[b], b)
         elif which_type(a) == MEM_TYPE  and which_type(b) == IMM_TYPE: # REG <-> REG
-            return '%s=%s:C|W'%(addr, b)
+            return '%s=%s:IMM-%s|W'%(addr, b, b)
         elif which_type(a) == REG_TYPE  and which_type(b) == IMM_TYPE: # REG <-> REG
-            return '%s=%s:C'%(a, b)
+            return '%s=%s:IMM-%s'%(a, b, b)
         else:
             raise NameError, code
 

@@ -1,12 +1,5 @@
 #include <stdio.h>
-#include <map>
 #include "pin.H"
-
-using std::map;
-
-static map<ADDRINT, unsigned long> CodeUseDic;
-static map<ADDRINT, unsigned long> CodeMemReadDic;
-static map<ADDRINT, unsigned long> CodeMemWriteDic;
 
 FILE * InstPool;
 
@@ -15,19 +8,22 @@ static bool RecordFlag = false;
 static ADDRINT StartAddr = 0xFFFFFFFF;
 static ADDRINT EndAddr = 0xFFFFFFFF;
 
+static unsigned int CodeUseDic[0x1000000] = {0};
+static unsigned int CodeMemReadDic[0x1000000] = {0};
+static unsigned int CodeMemWriteDic[0x1000000] = {0};
+
+static unsigned int MinAddr = 0xFFFFFFFF;
+static unsigned int MaxAddr = 0;
+
 // Record a memory read record
 VOID profile_mem_read( ADDRINT addr )
 {
-	if ( CodeMemReadDic.find(addr) == CodeMemReadDic.end() )
-		CodeMemReadDic[addr] = 0;
 	++CodeMemReadDic[addr];
 }
 
 // Record a memory write record
 VOID profile_mem_write( ADDRINT addr )
 {
-	if ( CodeMemWriteDic.find(addr) == CodeMemWriteDic.end() )
-		CodeMemWriteDic[addr] = 0;
 	++CodeMemWriteDic[addr];
 }
 
@@ -47,12 +43,12 @@ VOID Inst(INS ins, VOID *v)
     if ( pc == EndAddr )
     	RecordFlag = false;
 
-	if ( RecordFlag && pc < 0x02000000 )
+	if ( RecordFlag && pc < 0x01000000 )
 	{
-		// fprintf( InstPool, "%08x|%s\n", pc, INS_Disassemble(ins).c_str() );
-
-		if ( CodeUseDic.find(pc) == CodeUseDic.end() )
-			CodeUseDic[pc] = 0;
+		if ( MinAddr > pc )
+			MinAddr = pc;
+		if ( MaxAddr < pc )
+			MaxAddr = pc;
 
 		INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)profile_code, IARG_INST_PTR, IARG_END );
 
@@ -62,9 +58,9 @@ VOID Inst(INS ins, VOID *v)
 		if ( INS_HasMemoryRead2(ins) )
 			INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(profile_mem_read), IARG_INST_PTR, IARG_END);
 
+
 		if ( INS_IsMemoryRead(ins) )
 			INS_InsertPredicatedCall(ins, IPOINT_BEFORE, AFUNPTR(profile_mem_read), IARG_INST_PTR, IARG_END);
-
 	}
 }
 
@@ -72,14 +68,19 @@ VOID Inst(INS ins, VOID *v)
 // This function is called when the application exits
 VOID Finish(INT32 code, VOID *v)
 {
+	printf( "MinAddr:%08x, MaxAddr:%08x\n", MinAddr, MaxAddr );
+
 	FILE * fp = fopen( "data/profiler.log", "w");
 
-	for ( map<ADDRINT, unsigned long>::const_iterator it = CodeUseDic.begin(); it != CodeUseDic.end(); ++it )
-		fprintf( fp, "C|%08x-%d\n", it->first, it->second );
-	for ( map<ADDRINT, unsigned long>::const_iterator it = CodeMemReadDic.begin(); it != CodeMemReadDic.end(); ++it )
-		fprintf( fp, "R|%08x-%d\n", it->first, it->second );
-	for ( map<ADDRINT, unsigned long>::const_iterator it = CodeMemWriteDic.begin(); it != CodeMemWriteDic.end(); ++it )
-		fprintf( fp, "W|%08x-%d\n", it->first, it->second );
+	for ( size_t i = MinAddr; i <= MaxAddr; ++i )
+	{
+		if ( CodeUseDic[i] != 0 )
+			fprintf( fp, "C|%08x-%d\n", i, CodeUseDic[i] );
+		if ( CodeMemReadDic[i] != 0 )
+			fprintf( fp, "R|%08x-%d\n", i, CodeMemReadDic[i] );
+		if ( CodeMemWriteDic[i] != 0 )
+			fprintf( fp, "W|%08x-%d\n", i, CodeMemWriteDic[i] );
+	}
 
 	fclose(fp);
 	fclose( InstPool );

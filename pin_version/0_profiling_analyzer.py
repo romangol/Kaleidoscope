@@ -15,13 +15,19 @@ def parseProfiler():
     for s in data:
         if not "C|" in s:
             x = s.strip('\n')
-            if len(x) > 11 + 5:
+            if len(x) > 11 + 2:
                 newData.append(s)
 
     g = open('../data/profiled.log','w')
     for s in newData:
         g.write(s)
     g.close()
+
+    g = open('../config/hotmem.cfg','w')
+    for s in newData:
+        g.write(s[2:10] + "\n")
+    g.close()
+
 
     
 if __name__=="__main__":

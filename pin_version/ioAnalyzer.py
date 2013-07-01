@@ -16,6 +16,7 @@ REG_SET = set(["eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp",
                "ah", "al", "bh", "bl", "ch", "cl", "dh", "dl",
                "ax", "bx", "cx", "dx", "si", "di", "bp" ])
 
+IMM_RE = '[a-z0-9].*'
 
 REG_TYPE = 0
 MEM_TYPE = 1
@@ -83,6 +84,8 @@ def get_output( m_list ):
 
 
 def which_type(oprand):
+    if "IMM" in oprand:
+        return IMM_TYPE
     if oprand in REG_SET:
         return REG_TYPE
     if "[" in oprand:
@@ -90,4 +93,8 @@ def which_type(oprand):
     for i in REG_SET:
         if i in oprand:
             return REG_OP_TYPE
-    return IMM_TYPE
+
+    if re.match( IMM_RE, oprand ):
+        return IMM_TYPE
+
+    raise NameError, "Type Error for %s"%(oprand)

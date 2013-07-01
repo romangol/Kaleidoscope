@@ -3,8 +3,9 @@
 
 import os
 from ioAnalyzer import get_threads
-os.system("uniq -u ../data/instPool.out tmp")
-os.system("sort tmp > ../data/instPool.log")
+os.system("sort ../data/instPool.out > tmp")
+os.system("uniq tmp ../data/instPool.out")
+os.system("del tmp")
 
 
 if __name__=="__main__":
